@@ -140,6 +140,7 @@ bool ConsumePacket(uint Size) {
           case CMD_REQUEST_DEVICE_INFO:
           {
             
+            return(true);
           }
         }
 
