@@ -1,6 +1,6 @@
 # MapleTool<br/>
 
-<img src="mpt.png" width="500">
+<img src="mpt2.png" width="500">
 
 Companion Maple Bus analyzer for debugging MaplePad and other Maple Bus hardware
 
