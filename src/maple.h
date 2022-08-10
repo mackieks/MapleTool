@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include "format.h"
 #include "maple.pio.h"
 #include "pico/stdlib.h"
 
@@ -96,7 +95,7 @@ typedef struct PacketPuruPuruCondition_s {
 typedef struct PacketBlockRead_s {
   uint Func; // Nb. Big endian
   uint Address;
-  uint8_t Data[BLOCK_SIZE];
+  uint8_t Data[512];
 } PacketBlockRead;
 
 typedef struct FPuruPuruBlockReadPacket_s {
