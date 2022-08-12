@@ -1,18 +1,13 @@
 /**
- * Pop'n'Music controller
+ * MapleTool
+ * Forked from Pop'n Music Controller
  * Dreamcast Maple Bus Transiever example for Raspberry Pi Pico (RP2040)
  * (C) Charlie Cole 2021
  *
- * Modified by Mackie Kannard-Smith 2022
- * SSD1306 library by James Hughes (JamesH65)
+ * Changes by Mackie Kannard-Smith 2022
  *
  * Dreamcast controller connector pin 1 (Maple Bus A) to GP11 (MAPLE_A)
  * Dreamcast controller connector pin 5 (Maple Bus B) to GP12 (MAPLE_B)
- * Dreamcast controller connector pins 3 (GND) and 4 (Sense) to GND
- * GPIO pins for buttons (uses internal pullups, switch to GND. See ButtonInfos in maple.h)
- *
- * Maple TX done completely in PIO. Sends start of packet, data and end of
- * packet. Fed by DMA so fire and forget.
  *
  * Maple RX done mostly in software on core 1. PIO just waits for transitions
  * and shifts in whenever data pins change. For maximum speed the RX state
@@ -240,7 +235,7 @@ bool ConsumePacket(uint Size) {
             printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
                   Header->Origin, Header->NumWords);
 
-            uint func = (uint *)(Header + 1);
+            uint func = *(uint *)(Header + 1);
 
             if(func == __bswap32(FUNC_CONTROLLER)){ // Reformat to include func + all other fields
               PacketControllerCondition *ControllerCondition = (PacketControllerCondition *)(Header + 1);
@@ -259,7 +254,7 @@ bool ConsumePacket(uint Size) {
                 PacketMemoryInfo *MemoryInfo = (PacketMemoryInfo *)(Header + 1);
                 SWAP4(MemoryInfo->Func);
 
-                printf("Memory Info:\nFunction Type: %08x TotalSize: %04x PartitionNumber: %04x System Area: %04x FAT Area: %04x\n \ 
+                printf("Memory Info:\nFunction Type: %08x TotalSize: %04x PartitionNumber: %04x System Area: %04x FAT Area: %04x\n \
                 NumFATBlocks: %04x FileInfoArea: %04x NumInfoBlocks: %04x Volume Icon: %02x Reserved:%02x\n \
                 SaveArea: %04x NumSaveBlocks: %04x Reserved: %08x\n", MemoryInfo->Func, MemoryInfo->TotalSize, MemoryInfo->PartitionNumber,
                 MemoryInfo->SystemArea, MemoryInfo->FATArea, MemoryInfo->NumFATBlocks, MemoryInfo->NumFATBlocks, MemoryInfo->FileInfoArea,
@@ -281,7 +276,7 @@ bool ConsumePacket(uint Size) {
           }
           case CMD_GET_CONDITION:
           {
-            uint func = (uint *)(Header + 1);
+            uint func = *(uint *)(Header + 1);
 
             printf("GET_CONDITION\n");
             printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type:%08x\n", Header->Command, Header->Destination,
@@ -291,8 +286,8 @@ bool ConsumePacket(uint Size) {
           }
           case CMD_GET_MEDIA_INFO:
           {
-            uint func = (uint *)(Header + 1);
-            uint data = (uint *)(Header + 2);
+            uint func = *(uint *)(Header + 1);
+            uint data = *(uint *)(Header + 2);
 
             printf("GET_MEDIA_INFO\n");
             printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Reserved: %06x\n", Header->Command, Header->Destination,
@@ -302,8 +297,8 @@ bool ConsumePacket(uint Size) {
           }
           case CMD_BLOCK_READ:
           {
-            uint func = (uint *)(Header + 1);
-            uint data = (uint *)(Header + 2);
+            uint func = *(uint *)(Header + 1);
+            uint data = *(uint *)(Header + 2);
 
             printf("BLOCK_READ\n");
             printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x\n", Header->Command, Header->Destination,
@@ -313,8 +308,8 @@ bool ConsumePacket(uint Size) {
           }
           case CMD_BLOCK_WRITE:
           {
-            uint func = (uint *)(Header + 1);
-            uint data = (uint *)(Header + 2);
+            uint func = *(uint *)(Header + 1);
+            uint data = *(uint *)(Header + 2);
 
             printf("BLOCK_WRITE\n");
             printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
@@ -324,8 +319,8 @@ bool ConsumePacket(uint Size) {
           }
           case CMD_BLOCK_COMPLETE_WRITE:
           {
-            uint func = (uint *)(Header + 1);
-            uint data = (uint *)(Header + 2);
+            uint func = *(uint *)(Header + 1);
+            uint data = *(uint *)(Header + 2);
 
             printf("GET_LAST_ERROR (COMPLETE_BLOCK_WRITE)\n");
             printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
@@ -335,8 +330,8 @@ bool ConsumePacket(uint Size) {
           }
           case CMD_SET_CONDITION:
           {
-            uint func = (uint *)(Header + 1);
-            uint data = (uint *)(Header + 2);
+            uint func = *(uint *)(Header + 1);
+            uint data = *(uint *)(Header + 2);
 
             printf("GET_LAST_ERROR (COMPLETE_BLOCK_WRITE)\n");
             printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,

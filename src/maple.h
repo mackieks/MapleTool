@@ -27,12 +27,13 @@ typedef struct PacketDeviceInfo_s {
   char ProductLicense[60];
   uint16_t StandbyPower;
   uint16_t MaxPower;
+  char FreeDeviceStatus[80];
 } PacketDeviceInfo;
 
 typedef struct PacketMemoryInfo_s {
   uint Func; // Nb. Big endian
   uint16_t TotalSize;
-  uint16_t ParitionNumber;
+  uint16_t PartitionNumber;
   uint16_t SystemArea;
   uint16_t FATArea;
   uint16_t NumFATBlocks;
