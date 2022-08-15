@@ -32,6 +32,8 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "state_machine.h"
+#include "hardware/vreg.h"
+
 
 // Maple Bus Defines and Funcs
 
@@ -105,15 +107,17 @@ enum EFunction {
 };
 
 // Buffers
-static uint8_t RecieveBuffer[4096] __attribute__((aligned(4))); // Ring buffer for reading packets
-static uint8_t Packet[1024 + 8] __attribute__((aligned(4)));    // Temp buffer for consuming packets (could remove)
+static uint8_t RecieveBuffer[4096] __attribute__((aligned(4))); // Ring buffer + strlen(buffer) for reading packets
+static uint8_t Packet[1024 + 8] __attribute__((aligned(4)));    // Temp buffer + strlen(buffer) for consuming packets (could remove)
 
 static ESendState NextPacketSend = SEND_NOTHING;
 static uint OriginalControllerCRC = 0;
 static uint OriginalReadBlockResponseCRC = 0;
 static uint TXDMAChannel = 0;
 
-bool ConsumePacket(uint Size) {
+static char buffer[512] = {0};
+
+bool __not_in_flash_func(ConsumePacket)(uint Size) {
   if ((Size & 3) == 1) // Even number of words + CRC
   {
     Size--; // Drop CRC byte
@@ -144,9 +148,9 @@ bool ConsumePacket(uint Size) {
             SWAP4(DeviceInfo->FuncData[1]);
             SWAP4(DeviceInfo->FuncData[2]);
 
-            printf("DEVICE_INFO\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords);
+            sprintf(buffer + strlen(buffer),"DEVICE_INFO\n");
+            // sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            //       Header->Origin, Header->NumWords);
                   
             return(true);
           }
@@ -159,25 +163,25 @@ bool ConsumePacket(uint Size) {
             SWAP4(DeviceInfo->FuncData[1]);
             SWAP4(DeviceInfo->FuncData[2]);
 
-            printf("ALL_DEVICE_INFO\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords);
+            sprintf(buffer + strlen(buffer),"ALL_DEVICE_INFO\n");
+            // sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            //       Header->Origin, Header->NumWords);
                   
             return(true);
           }
           case CMD_RESET_DEVICE:
           {
-            printf("DEVICE_RESET\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords);
+            sprintf(buffer + strlen(buffer),"DEVICE_RESET\n");
+            // sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            //       Header->Origin, Header->NumWords);
             
             return(true);
           }
           case CMD_SHUTDOWN_DEVICE:
           {
-            printf("DEVICE_SHUTDOWN\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords);
+            sprintf(buffer + strlen(buffer),"DEVICE_SHUTDOWN\n");
+            // sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            //       Header->Origin, Header->NumWords);
             
             return(true);
           }
@@ -190,14 +194,14 @@ bool ConsumePacket(uint Size) {
             SWAP4(DeviceInfo->FuncData[1]);
             SWAP4(DeviceInfo->FuncData[2]);
 
-            printf("DEVICE_INFO\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            sprintf(buffer + strlen(buffer),"DEVICE_INFO\n");
+            sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
                   Header->Origin, Header->NumWords);
 
-            printf("Info:\nFunction Type: %08x (%08x %08x %08x) Area: %d Dir: %d Name: %.*s License: %.*s Pwr: %d->%d\n",
-                  DeviceInfo->Func, DeviceInfo->FuncData[0], DeviceInfo->FuncData[1], DeviceInfo->FuncData[2],
-                  DeviceInfo->AreaCode, DeviceInfo->ConnectorDirection, 30, DeviceInfo->ProductName, 60, DeviceInfo->ProductLicense,
-                  DeviceInfo->StandbyPower, DeviceInfo->MaxPower);
+            // sprintf(buffer + strlen(buffer),"Info:\nFunction Type: %08x (%08x %08x %08x) Area: %d Dir: %d Name: %.*s License: %.*s Pwr: %d->%d\n",
+            //       DeviceInfo->Func, DeviceInfo->FuncData[0], DeviceInfo->FuncData[1], DeviceInfo->FuncData[2],
+            //       DeviceInfo->AreaCode, DeviceInfo->ConnectorDirection, 30, DeviceInfo->ProductName, 60, DeviceInfo->ProductLicense,
+            //       DeviceInfo->StandbyPower, DeviceInfo->MaxPower);
                   
             return(true);
           }
@@ -210,76 +214,77 @@ bool ConsumePacket(uint Size) {
             SWAP4(DeviceInfo->FuncData[1]);
             SWAP4(DeviceInfo->FuncData[2]);
 
-            printf("ALL_DEVICE_INFO\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            sprintf(buffer + strlen(buffer),"ALL_DEVICE_INFO\n");
+            sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
                   Header->Origin, Header->NumWords);
 
-            printf("Info:\nFunction Type: %08x (%08x %08x %08x) Area: %d Dir: %d Name: %.*s License: %.*s Pwr: %d->%d FreeDevStatus: %.*s\n",
-                  DeviceInfo->Func, DeviceInfo->FuncData[0], DeviceInfo->FuncData[1], DeviceInfo->FuncData[2],
-                  DeviceInfo->AreaCode, DeviceInfo->ConnectorDirection, 30, DeviceInfo->ProductName, 60, DeviceInfo->ProductLicense,
-                  DeviceInfo->StandbyPower, DeviceInfo->MaxPower, DeviceInfo->FreeDeviceStatus, 80);
+            // sprintf(buffer + strlen(buffer),"Info:\nFunction Type: %08x (%08x %08x %08x) Area: %d Dir: %d Name: %.*s License: %.*s Pwr: %d->%d FreeDevStatus: %.*s\n",
+            //       DeviceInfo->Func, DeviceInfo->FuncData[0], DeviceInfo->FuncData[1], DeviceInfo->FuncData[2],
+            //       DeviceInfo->AreaCode, DeviceInfo->ConnectorDirection, 30, DeviceInfo->ProductName, 60, DeviceInfo->ProductLicense,
+            //       DeviceInfo->StandbyPower, DeviceInfo->MaxPower, DeviceInfo->FreeDeviceStatus, 80);
                   
             return(true);
           }
           case CMD_RESPOND_COMMAND_ACK:
           {
-            printf("DEVICE_REPLY_ACK\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords);
+            sprintf(buffer + strlen(buffer),"DEVICE_REPLY_ACK\n");
+            // sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            //       Header->Origin, Header->NumWords);
             
             return(true);
           }
           case CMD_RESPOND_DATA_TRANSFER:
           {
-            printf("DATA_TRANSFER\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
+            sprintf(buffer + strlen(buffer),"DATA_TRANSFER\n");
+            sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x\n", Header->Command, Header->Destination,
                   Header->Origin, Header->NumWords);
 
             uint func = *(uint *)(Header + 1);
 
-            if(func == __bswap32(FUNC_CONTROLLER)){ // Reformat to include func + all other fields
-              PacketControllerCondition *ControllerCondition = (PacketControllerCondition *)(Header + 1);
-              SWAP4(ControllerCondition->Condition);
+            // if(func == __bswap32(FUNC_CONTROLLER)){ // Reformat to include func + all other fields
+            //   PacketControllerCondition *ControllerCondition = (PacketControllerCondition *)(Header + 1);
+            //   SWAP4(ControllerCondition->Condition);
 
-              printf("Controller Condition:\nFunction Type: %08x Buttons: %02x LT:%d RT:%d Joy: %d %d Joy2: %d %d\n",
-									   ControllerCondition->Condition, ControllerCondition->Buttons, ControllerCondition->LeftTrigger, ControllerCondition->RightTrigger,
-									   ControllerCondition->JoyX, ControllerCondition->JoyY,
-									   ControllerCondition->JoyX2, ControllerCondition->JoyY2);
-              return(true);
-            }
-            else if(func == __bswap32(FUNC_MEMORY_CARD)){
-              // Could be responding to GET_MEDIA_INFO or BLOCK_READ
-              // GET_MEDIA_INFO response always has Data Size = 0x07
-              if(Header->NumWords == 0x07){ // GET_MEDIA_INFO response
-                PacketMemoryInfo *MemoryInfo = (PacketMemoryInfo *)(Header + 1);
-                SWAP4(MemoryInfo->Func);
+            //   sprintf(buffer + strlen(buffer),"Controller Condition:\nFunction Type: %08x Buttons: %02x LT:%d RT:%d Joy: %d %d Joy2: %d %d\n",
+						// 			   ControllerCondition->Condition, ControllerCondition->Buttons, ControllerCondition->LeftTrigger, ControllerCondition->RightTrigger,
+						// 			   ControllerCondition->JoyX, ControllerCondition->JoyY,
+						// 			   ControllerCondition->JoyX2, ControllerCondition->JoyY2);
+            //   return(true);
+            // }
+            // else if(func == __bswap32(FUNC_MEMORY_CARD)){
+            //   // Could be responding to GET_MEDIA_INFO or BLOCK_READ
+            //   // GET_MEDIA_INFO response always has Data Size = 0x07
+            //   if(Header->NumWords == 0x07){ // GET_MEDIA_INFO response
+            //     PacketMemoryInfo *MemoryInfo = (PacketMemoryInfo *)(Header + 1);
+            //     SWAP4(MemoryInfo->Func);
 
-                printf("Memory Info:\nFunction Type: %08x TotalSize: %04x PartitionNumber: %04x System Area: %04x FAT Area: %04x\n \
-                NumFATBlocks: %04x FileInfoArea: %04x NumInfoBlocks: %04x Volume Icon: %02x Reserved:%02x\n \
-                SaveArea: %04x NumSaveBlocks: %04x Reserved: %08x\n", MemoryInfo->Func, MemoryInfo->TotalSize, MemoryInfo->PartitionNumber,
-                MemoryInfo->SystemArea, MemoryInfo->FATArea, MemoryInfo->NumFATBlocks, MemoryInfo->NumFATBlocks, MemoryInfo->FileInfoArea,
-                MemoryInfo->NumInfoBlocks, MemoryInfo->VolumeIcon, MemoryInfo->Reserved, MemoryInfo->SaveArea, MemoryInfo->NumSaveBlocks,
-                MemoryInfo->Reserved32);
+            //     sprintf(buffer + strlen(buffer),"Memory Info:\nFunction Type: %08x TotalSize: %04x PartitionNumber: %04x System Area: %04x FAT Area: %04x\n \
+            //     NumFATBlocks: %04x FileInfoArea: %04x NumInfoBlocks: %04x Volume Icon: %02x Reserved:%02x\n \
+            //     SaveArea: %04x NumSaveBlocks: %04x Reserved: %08x\n", MemoryInfo->Func, MemoryInfo->TotalSize, MemoryInfo->PartitionNumber,
+            //     MemoryInfo->SystemArea, MemoryInfo->FATArea, MemoryInfo->NumFATBlocks, MemoryInfo->NumFATBlocks, MemoryInfo->FileInfoArea,
+            //     MemoryInfo->NumInfoBlocks, MemoryInfo->VolumeIcon, MemoryInfo->Reserved, MemoryInfo->SaveArea, MemoryInfo->NumSaveBlocks,
+            //     MemoryInfo->Reserved32);
 
-                return(true);
-              }
-              else { // BLOCK_READ response
-                PacketBlockRead *BlockRead = (PacketBlockRead *)(Header + 1);
-                SWAP4(BlockRead->Func);
+            //     return(true);
+            //   }
+            //   else { // BLOCK_READ response
+            //     PacketBlockRead *BlockRead = (PacketBlockRead *)(Header + 1);
+            //     SWAP4(BlockRead->Func);
 
-                printf("Block Read:\nFunction Type: %08x PartitionNumber (PT): %02x Phase: %02x Block No: %04x\nBlock Data: NOT PRINTED",
-                        BlockRead->Func, BlockRead->Address >> 24, (BlockRead->Address & 0xff0000) >> 16, BlockRead->Address & 0xffff);
+            //     sprintf(buffer + strlen(buffer),"Block Read:\nFunction Type: %08x PartitionNumber (PT): %02x Phase: %02x Block No: %04x\nBlock Data: NOT PRINTED",
+            //             BlockRead->Func, BlockRead->Address >> 24, (BlockRead->Address & 0xff0000) >> 16, BlockRead->Address & 0xffff);
 
-                return(true);
-              }
-            }
+            //     return(true);
+            //   }
+            // }
+            return(true);
           }
           case CMD_GET_CONDITION:
           {
             uint func = *(uint *)(Header + 1);
 
-            printf("GET_CONDITION\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type:%08x\n", Header->Command, Header->Destination,
+            sprintf(buffer + strlen(buffer),"GET_CONDITION\n");
+            sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type:%08x\n", Header->Command, Header->Destination,
                   Header->Origin, Header->NumWords, __bswap32(func));
             
             return(true);
@@ -289,8 +294,8 @@ bool ConsumePacket(uint Size) {
             uint func = *(uint *)(Header + 1);
             uint data = *(uint *)(Header + 2);
 
-            printf("GET_MEDIA_INFO\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Reserved: %06x\n", Header->Command, Header->Destination,
+            sprintf(buffer + strlen(buffer),"GET_MEDIA_INFO\n");
+            sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Reserved: %06x\n", Header->Command, Header->Destination,
                   Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, __bswap32(data) & 0xffffff);
             
             return(true);
@@ -300,9 +305,9 @@ bool ConsumePacket(uint Size) {
             uint func = *(uint *)(Header + 1);
             uint data = *(uint *)(Header + 2);
 
-            printf("BLOCK_READ\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, (__bswap32(data) & 0xff0000) >> 16, __bswap32(data) & 0xffff);
+            sprintf(buffer + strlen(buffer),"BLOCK_READ\n");
+            sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x\n", Header->Command, Header->Destination,
+                 Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, (__bswap32(data) & 0xff0000) >> 16, __bswap32(data) & 0xffff);
             
             return(true);
           }
@@ -311,8 +316,8 @@ bool ConsumePacket(uint Size) {
             uint func = *(uint *)(Header + 1);
             uint data = *(uint *)(Header + 2);
 
-            printf("BLOCK_WRITE\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
+            sprintf(buffer + strlen(buffer),"BLOCK_WRITE\n");
+            sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
                   Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, (__bswap32(data) & 0xff0000) >> 16, __bswap32(data) & 0xffff);
             
             return(true);
@@ -322,9 +327,9 @@ bool ConsumePacket(uint Size) {
             uint func = *(uint *)(Header + 1);
             uint data = *(uint *)(Header + 2);
 
-            printf("GET_LAST_ERROR (COMPLETE_BLOCK_WRITE)\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, (__bswap32(data) & 0xff0000) >> 16, __bswap32(data) & 0xffff);
+            sprintf(buffer + strlen(buffer),"GET_LAST_ERROR (COMPLETE_BLOCK_WRITE)\n");
+            // sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
+            //       Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, (__bswap32(data) & 0xff0000) >> 16, __bswap32(data) & 0xffff);
             
             return(true);
           }
@@ -333,29 +338,37 @@ bool ConsumePacket(uint Size) {
             uint func = *(uint *)(Header + 1);
             uint data = *(uint *)(Header + 2);
 
-            printf("GET_LAST_ERROR (COMPLETE_BLOCK_WRITE)\n");
-            printf("Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
-                  Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, (__bswap32(data) & 0xff0000) >> 16, __bswap32(data) & 0xffff);
+            sprintf(buffer + strlen(buffer),"SET_CONDITION\n");
+            // sprintf(buffer + strlen(buffer),"Command: %04x Destination: %04x Origin: %04x Data Length: %04x Function Type: %08x Partition Number: %02x Phase: %02x Block No: %04x Block Data: NOT PRINTED\n", Header->Command, Header->Destination,
+            //       Header->Origin, Header->NumWords, __bswap32(func), __bswap32(data) >> 24, (__bswap32(data) & 0xff0000) >> 16, __bswap32(data) & 0xffff);
             
             return(true);
           }
           case CMD_RESPOND_FILE_ERROR:
           {
-            printf("CMD_RESPOND_FILE_ERROR\n");
+            sprintf(buffer + strlen(buffer),"CMD_RESPOND_FILE_ERROR\n");
+            return(true);
           }
           case CMD_RESPOND_SEND_AGAIN:
           {
-            printf("CMD_RESPOND_SEND_AGAIN\n");
+            sprintf(buffer + strlen(buffer),"CMD_RESPOND_SEND_AGAIN\n");
+            return(true);
           }
           case CMD_RESPOND_FUNC_CODE_UNSUPPORTED:
           {
-            printf("CMD_RESPOND_FUNC_CODE_UNSUPPORTED\n");
+            sprintf(buffer + strlen(buffer),"CMD_RESPOND_FUNC_CODE_UNSUPPORTED\n");
+            return(true);
           }
           case CMD_NO_RESPONSE:
           {
-            printf("CMD_NO_RESPONSE\n");
+            sprintf(buffer + strlen(buffer),"CMD_NO_RESPONSE\n");
+            return(true);
           }
-          default: return(true);
+          default:
+          {
+            sprintf(buffer + strlen(buffer),"unknown command!\n");
+            return(true);
+          }
         }     
         return true;
       }
@@ -414,7 +427,7 @@ static void __not_in_flash_func(core1_entry)(void) {
           StartOfPacket = ((Offset + 3) & ~3); // Align up for easier swizzling
         } else {
           //#if !SHOULD_PRINT // Core can be too slow due to printing
-          panic("Packet processing core isn't fast enough :(\n");
+          sprintf(buffer + strlen(buffer),"Missed a packet.\n");
           //#endif
         }
       }
@@ -423,7 +436,7 @@ static void __not_in_flash_func(core1_entry)(void) {
       // Should be a panic but the inlining of multicore_fifo_push_blocking caused it to fire
       // Weirdly after changing this to a printf it never gets called :/
       // Something to work out...
-      printf("Probably overflowed. This code isn't fast enough :(\n");
+      sprintf(buffer + strlen(buffer),"Probably overflowed. This code isn't fast enough :(\n");
     }
   }
 }
@@ -450,7 +463,7 @@ void SetupMapleTX() {
   gpio_pull_up(MAPLE_B);
 }
 
-void SetupMapleRX() {
+void __not_in_flash_func(SetupMapleRX)() {
   uint RXPIOOffsets[3] = {pio_add_program(RXPIO, &maple_rx_triple1_program), pio_add_program(RXPIO, &maple_rx_triple2_program), pio_add_program(RXPIO, &maple_rx_triple3_program)};
   maple_rx_triple_program_init(RXPIO, RXPIOOffsets, PICO_PIN1_PIN_RX, PICO_PIN5_PIN_RX, 3.0f);
 
@@ -463,9 +476,11 @@ void SetupMapleRX() {
   pio_sm_set_enabled(RXPIO, 0, true);
 }
 
-int main() {
+int __not_in_flash_func(main)() {
   stdio_init_all();
-  // set_sys_clock_khz(175000, false); // Overclock seems to lead to instability
+  vreg_set_voltage(VREG_VOLTAGE_1_20);
+    sleep_ms(1000);
+  set_sys_clock_khz(150000, true);
 
   multicore_launch_core1(core1_entry);
 
@@ -485,8 +500,11 @@ int main() {
     ConsumePacket(PacketSize);
     StartOfPacket = ((EndOfPacket + 3) & ~3);
 
-    if (NextPacketSend != SEND_NOTHING) {
-      NextPacketSend = SEND_NOTHING;
-    }
+    printf("%s", buffer);
+    memset(buffer, 0, sizeof(buffer + strlen(buffer))/sizeof(char));
+
+    // if (NextPacketSend != SEND_NOTHING) {
+    //   NextPacketSend = SEND_NOTHING;
+    // }
   }
 }
